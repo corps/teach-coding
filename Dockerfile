@@ -8,3 +8,5 @@ RUN mkdir -p /app
 
 WORKDIR /app
 COPY . /app/
+
+ENV PATH=/app/node_modules/.bin:$PATH

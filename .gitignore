@@ -1,2 +1,4 @@
 .image
 .idea
+dist
+node_modules
