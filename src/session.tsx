@@ -15,6 +15,22 @@ function getCookie(name: string) {
     return null;
 }
 
-export function getSession() {
+export function getSession(): [string | null, string] {
+    const sessionId = getCookie('sessionId') ||  createSessionId();
+    const userId = getCookie('userName');
 
+    return [userId, sessionId];
+}
+
+export function setName(name: string, sessionId: string) {
+    setCookie('userName', name, 365);
+    setCookie('sessionId', sessionId, 30);
+    return getSession();
+}
+
+function createSessionId() {
+   return 'xxxxx-xxxxx'.replace(/[xy]/g, function(c) {
+      var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+      return v.toString(16);
+   });
 }

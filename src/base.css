@@ -12,3 +12,7 @@
 .editor textarea {
   outline: 0;
 }
+
+.editor textarea, .editor pre {
+  word-break: break-all !important;
+}
