@@ -16,3 +16,23 @@
 .editor textarea, .editor pre {
   word-break: break-all !important;
 }
+
+
+/*.gist-highlight {*/
+/*  border-left: 3ex solid #eee;*/
+/*  position: relative;*/
+/*}*/
+
+.editor pre {
+  counter-reset: linenumbers;
+}
+
+.editor pre .nl:before {
+  color: #000;
+  content: counter(linenumbers);
+  counter-increment: linenumbers;
+  left: -3ex;
+  position: absolute;
+  text-align: right;
+  width: 2.5ex;
+}
