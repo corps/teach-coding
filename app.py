@@ -9,6 +9,9 @@ import os.path
 import select
 import traceback
 import shutil
+import hashlib
+import random
+import itertools
 
 TICK_TIME = 0.25
 code_files = {f: open(os.path.join('programs', f), 'r').read() for f in os.listdir('programs') if
@@ -31,17 +34,15 @@ def log(t):
 def get_sprite(sprite_id):
     return state['sprites'].setdefault(sprite_id, dict(url='', x=0, y=0, text=''))
 
-
-def position_sprite(sprite_id, x, y):
+def move_sprite(sprite_id, x, y):
     s = get_sprite(sprite_id)
     s['x'] = x
     s['y'] = y
 
-
 def draw_sprite(sprite_id, url):
     get_sprite(sprite_id)['url'] = url
 
-def write_sprite(sprite_id, text):
+def write(sprite_id, text):
     get_sprite(sprite_id)['text'] = text
 
 
@@ -59,6 +60,7 @@ def print(v):
 
 
 def run_program(input):
+    random.seed(int.from_bytes(hashlib.md5(input['sessionId'].encode("utf8")).digest(), "big") % 19239239239239)
     state['serverRunning'] = True
     state['lastError'] = ''
     state['tick'] = 0
@@ -66,49 +68,56 @@ def run_program(input):
 
     send_state()
 
-    run = None
-    def tick(sprite_id):
-        try:
-            return run(sprite_id)
-        except BaseException as e:
-            state['lastError'] = traceback.format_exc()
-            return True
-
     try:
         p_globals = dict(
-            __builtins__=dict(int=int, str=str, float=float, dict=dict, set=set),
+            __builtins__=dict(
+                int=int, str=str, float=float, dict=dict,
+                set=set, __import__=__import__, iter=iter,
+                next=next, print=print, len=len, range=range,
+                random_int=random.randint, zip=zip, abs=abs,
+            ),
             remove_sprite=remove_sprite,
             draw_sprite=draw_sprite,
-            write_sprite=write_sprite,
-            position_sprite=position_sprite,
-            print=print,
+            write=write,
+            move_sprite=move_sprite,
         )
 
-        p_locals = dict()
-
         try:
-            exec(input['code'], p_globals, p_locals)
-            if 'tick' in p_locals and hasattr(p_locals['tick'], '__call__'):
-                run = p_locals['tick']
+            exec(input['code'], p_globals, p_globals)
         except Exception as e:
             state['lastError'] = traceback.format_exc()
             return
 
         send_state()
 
-        if not run:
-            return
+        def run_tick():
+            activity = p_globals.get('activity')
+            if activity:
+                try:
+                    eval('next(activity)', p_globals)
+                except StopIteration:
+                    # p_globals['activity'] = iter([])
+                    pass
 
+            state['tick'] += 1
+
+        acknowledged_clicks = 0
         while True:
             for click in input['clicks']:
                 sprite_id, tick = click
-                if tick < state['tick']:
+                if tick < acknowledged_clicks:
                     continue
 
-                if tick(sprite_id):
-                    return
+                while state['tick'] < tick:
+                    try:
+                        run_tick()
+                    except Exception as e:
+                        state['lastError'] = traceback.format_exc()
+                        return
 
-                state['tick'] = tick
+                acknowledged_clicks = state['tick'] + 1
+                if 'handle_click' in p_globals:
+                    p_globals['handle_click'](sprite_id)
 
             send_state()
 
@@ -117,7 +126,10 @@ def run_program(input):
             rd, _, _, = select.select([stdin], [], [], 0)
 
             if not rd:
-                if tick(None):
+                try:
+                    run_tick()
+                except Exception as e:
+                    state['lastError'] = traceback.format_exc()
                     return
             else:
                 input = read_input()
@@ -158,7 +170,6 @@ def main():
 
     while True:
         input = read_input()
-        log(json.dumps(input))
         if not input['name']:
             continue
 

@@ -46,9 +46,15 @@ function App() {
   const [code, setLocalCode] = useState("");
   const [codeFile, setCodeFile] = useState("");
   const [pollIdx, setPollIdx] = useState(0);
+
   const setModifiedCode = useCallback((s: string) => {
-    saveCode(codeFile, s);
     setLocalCode(s);
+
+    const timeout = setTimeout(() => {
+      saveCode(codeFile, s);
+    }, 500)
+
+    return () => clearTimeout(timeout);
   }, [codeFile]);
 
   const clientState = useMemo(() => ({
@@ -88,10 +94,10 @@ function App() {
   }, [codeFile, codeFiles]);
 
   useEffect(() => {
-    if (!code && codeFile in codeFiles) {
+    if (codeFile in codeFiles) {
       setLocalCode(loadCode(codeFile) || codeFiles[codeFile])
     }
-  }, [codeFile, codeFiles])
+  }, [codeFile])
 
   const resetCode = useCallback(() => {
     setModifiedCode(codeFiles[codeFile]);
@@ -114,7 +120,7 @@ function App() {
 
   return <div>
     <div className="f7 ma3">{connected ? 'connected' : 'disconnected'}</div>
-    <div className="mt5 center" style={{width: 500}}>
+    <div className="mt5 center" style={{width: 700}}>
       {inner}
     </div>
   </div>;
@@ -124,7 +130,7 @@ function Login(props: { setSessionName: Dispatch<string>, setGroup: Dispatch<str
   if (!props.name) {
     return <div>
       <h3 className="h3">
-        New user! Type in a username below and hit enter to start.
+        Welcome! Type in a username below and hit enter to start.
       </h3>
       <CoolTextInput  key="name" value="" onChange={props.setSessionName} placeholder="username"/>
     </div>

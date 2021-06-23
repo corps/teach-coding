@@ -18,7 +18,7 @@ export interface GameProps {
 }
 
 export function Game({sprites, onClickSprite}: GameProps) {
-  return <div style={{position: 'relative', width: '100%', height: 500, border: '1px black solid'}}>
+  return <div className="center" style={{position: 'relative', width: 300, height: 300, border: '1px black solid'}}>
     {Object.keys(sprites).map(spriteId => {
       const {x, y, url, text} = {...defaultSprite, ...sprites[spriteId]};
       const style = {left: x, top: y, position: "absolute" as "absolute"};

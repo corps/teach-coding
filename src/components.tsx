@@ -19,6 +19,7 @@ export function CoolTextInput(props: { value: string, onChange: Dispatch<string>
     }, [onChange])
 
     return <Editor
+        autoFocus
         value={innerValue}
         onValueChange={_onChange}
         placeholder={placeholder}

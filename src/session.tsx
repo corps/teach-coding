@@ -1,20 +1,9 @@
-function setCookie(name: string, value: string, daysToLive: number) {
-  let cookie = encodeURIComponent(name) + "=" + encodeURIComponent(value);
-  cookie += "; max-age=" + (daysToLive*24*60*60);
-  cookie += "; SameSite=strict";
-  document.cookie = cookie;
+function setCookie(name: string, value: string) {
+    window.localStorage[name] = value;
 }
 
-function getCookie(name: string) {
-  name = encodeURIComponent(name);
-    const cookies = document.cookie.split(";");
-    const c = cookies.map(cookie => cookie.split("=")).find(([n, value]) => name === n.trim())
-
-  if (c){
-        return decodeURIComponent(c[1].trim());
-    }
-
-    return null;
+function getValue(name: string) {
+    return window.localStorage[name]
 }
 
 interface Session {
@@ -31,16 +20,12 @@ export function loadSession(): Session {
     }
 }
 
-export function saveName(name: string) {
-    setCookie('name', name, 365);
-}
-
 export function loadCode(file: string) {
-    return getCookie(`code-${file}`)
+    return getValue(`code-${file}`)
 }
 
 export function saveCode(file: string, code: string) {
-    return setCookie(`code-${file}`, code, 365);
+    return setCookie(`code-${file}`, code);
 }
 
 function createSessionId() {

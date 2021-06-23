@@ -1,9 +1,17 @@
-.image: Dockerfile
+ASSETS := $(wildcard assets/*)
+
+.PHONY: assets
+.dist: $(ASSETS)
+	mkdir -p dist
+	cp $(ASSETS) dist/
+	touch .assets
+
+.image: Dockerfile .dist
 	docker build --network host --tag teach-coding .
 	touch .image
 
 bash: .image
-	docker run --rm -it -v $$PWD:/app teach-coding bash
+	docker run --rm -it -u $(shell id -u):$(shell id -g) -v $$PWD:/app teach-coding bash
 
 up: .image
 	docker run -d -p 8080:8080 -v $$PWD:/app --name teach-coding-srv teach-coding websocketd --port 8080 --staticdir dist ./app.py || true
@@ -16,7 +24,4 @@ down:
 	docker rm teach-coding-webpack || true
 
 logs:
-	@ echo "===== Server"
-	@ docker logs teach-coding-srv
-	@ echo "===== Webpack"
-	@ docker logs teach-coding-webpack
+	@ docker logs -f teach-coding-srv

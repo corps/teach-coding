@@ -31,8 +31,8 @@
   color: #000;
   content: counter(linenumbers);
   counter-increment: linenumbers;
-  left: -3ex;
+  left: -5ex;
   position: absolute;
   text-align: right;
-  width: 2.5ex;
+  width: 4.5ex;
 }
