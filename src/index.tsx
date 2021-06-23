@@ -49,7 +49,7 @@ function App() {
   const setModifiedCode = useCallback((s: string) => {
     saveCode(codeFile, s);
     setLocalCode(s);
-  }, []);
+  }, [codeFile]);
 
   const clientState = useMemo(() => ({
     name, sessionId, clicks, running, code, pollIdx, group, showAdmin
@@ -114,7 +114,7 @@ function App() {
 
   return <div>
     <div className="f7 ma3">{connected ? 'connected' : 'disconnected'}</div>
-    <div className="w-third mt5 center">
+    <div className="mt5 center" style={{width: 500}}>
       {inner}
     </div>
   </div>;
