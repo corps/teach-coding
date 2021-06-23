@@ -1,11 +1,11 @@
-export function setCookie(name: string, value: string, daysToLive: number) {
+function setCookie(name: string, value: string, daysToLive: number) {
   let cookie = encodeURIComponent(name) + "=" + encodeURIComponent(value);
   cookie += "; max-age=" + (daysToLive*24*60*60);
   cookie += "; SameSite=strict";
   document.cookie = cookie;
 }
 
-export function getCookie(name: string) {
+function getCookie(name: string) {
   name = encodeURIComponent(name);
     const cookies = document.cookie.split(";");
     const c = cookies.map(cookie => cookie.split("=")).find(([n, value]) => name === n.trim())
@@ -17,18 +17,30 @@ export function getCookie(name: string) {
     return null;
 }
 
-export function getSession(): [string | null, string | null] {
-    const sessionId = getCookie('sessionId');
-    const userId = getCookie('userName');
-
-    return [userId, sessionId];
+interface Session {
+    name: string | null,
+    sessionId: string | null,
+    group: string | null,
 }
 
-export function setName(name: string): [string, string] {
-  const sessionId = createSessionId();
-    setCookie('userName', name, 365);
-    setCookie('sessionId', sessionId, 30);
-    return [name, sessionId];
+export function loadSession(): Session {
+    return {
+        name: null,
+        sessionId: createSessionId(),
+        group: null,
+    }
+}
+
+export function saveName(name: string) {
+    setCookie('name', name, 365);
+}
+
+export function loadCode(file: string) {
+    return getCookie(`code-${file}`)
+}
+
+export function saveCode(file: string, code: string) {
+    return setCookie(`code-${file}`, code, 365);
 }
 
 function createSessionId() {

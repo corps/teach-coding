@@ -7,7 +7,7 @@ import {highlight, languages} from "prismjs/components/prism-core";
 import "prismjs/components/prism-python";
 import "prismjs/themes/prism.css";
 import {CoolTextInput} from "./components";
-import {getCookie, getSession, setCookie, setName} from "./session";
+import {loadCode, loadSession, saveCode} from "./session";
 import {useSocketSync} from "./websockets";
 import {Game, GameProps} from "./game"; //Example style, you can use another
 
@@ -18,39 +18,60 @@ const defaultServerState = {
   serverRunning: false,
   lastError: '',
   lastPrint: '',
+  groups: {} as {[k: string]: {[k: string]: { name: string, lastError: string, code: string }}}
 }
 
 type ServerState = typeof defaultServerState;
 
 function App() {
   const defaultSession = useMemo(() => {
-    return getSession();
+    return loadSession();
   }, []);
   const [session, setSession] = useState(defaultSession);
+  const {name, sessionId, group} = session;
   const setSessionName = useCallback((name: string) => {
-    setSession(setName(name));
-  }, [setSession, setName]);
-  const [name, sessionId] = session;
+    setSession(({ sessionId, group }) => ({ name, sessionId, group }));
+  }, [setSession]);
+  const setGroup = useCallback((group: string) => {
+    setSession(({ sessionId, name }) => ({ name, sessionId, group }));
+  }, [setSession])
+
+  const [showAdmin, setShowAdmin] = useState(false);
   const [running, setRunning] = useState(false);
   const [clicks, setClicks] = useState([] as [string, number][]);
-  const [code, setLocalCode] = useState(() => getCookie(`${name}-${sessionId}-code`) || "");
+  const startRunning = useCallback(() => {
+    setRunning(true);
+    setClicks([]);
+  }, [setRunning, setClicks]);
+  const [code, setLocalCode] = useState("");
   const [codeFile, setCodeFile] = useState("");
-  const [printIdx, setPrintIdx] = useState(0);
+  const [pollIdx, setPollIdx] = useState(0);
   const setModifiedCode = useCallback((s: string) => {
-    setCookie(`${name}-${sessionId}-code`, s, 365);
+    saveCode(codeFile, s);
     setLocalCode(s);
   }, []);
 
   const clientState = useMemo(() => ({
-    name, sessionId, clicks, running, code, printIdx
-  }), [name, sessionId, clicks, running, code, printIdx]);
+    name, sessionId, clicks, running, code, pollIdx, group, showAdmin
+  }), [name, sessionId, clicks, running, code, pollIdx, group, showAdmin]);
 
-  const [{codeFiles, sprites, tick, serverRunning, lastError, lastPrint}, connected] = useSocketSync(clientState, defaultServerState, (a, b) => b)
+  const [{codeFiles, sprites, tick, serverRunning, lastError, lastPrint, groups}, connected] = useSocketSync(clientState, defaultServerState, (a, b) => b)
+
+  useEffect(() => {
+    if (showAdmin) {
+      const poller = setInterval(() => setPollIdx(idx => idx + 1), 1000);
+      return () => {
+        clearInterval(poller);
+      }
+    }
+
+    return () => null
+  }, [showAdmin])
 
   useEffect(() => {
     if (lastPrint) {
       alert(lastPrint);
-      setPrintIdx(p => p + 1);
+      setPollIdx(p => p + 1);
     }
   }, [lastPrint])
 
@@ -67,19 +88,28 @@ function App() {
   }, [codeFile, codeFiles]);
 
   useEffect(() => {
-    if (!code && codeFile in codeFiles) setLocalCode(codeFiles[codeFile])
+    if (!code && codeFile in codeFiles) {
+      setLocalCode(loadCode(codeFile) || codeFiles[codeFile])
+    }
   }, [codeFile, codeFiles])
+
+  const resetCode = useCallback(() => {
+    setModifiedCode(codeFiles[codeFile]);
+  }, [setModifiedCode, codeFile, codeFiles]);
 
   let inner: ReactChild | null = null;
   if (running) {
-    inner = <RunGame setRun={setRunning} onClickSprite={s => setClicks(clicks => clicks.concat([s, tick]))} sprites={sprites}/>
-  } else if (!name || !sessionId) {
-    inner = <Login setSessionName={setSessionName}/>;
+    inner = <RunGame setRun={setRunning} onClickSprite={s => setClicks(clicks => clicks.concat([[s, tick]]))} sprites={sprites}/>
+  } else if (!name || !sessionId || !group) {
+    inner = <Login setSessionName={setSessionName} setGroup={setGroup} name={name}/>;
+  } else if (showAdmin) {
+    inner = <Admin groups={groups} onSetCode={setModifiedCode} setShowAdmin={setShowAdmin}/>;
   } else if (codeFile in codeFiles) {
     inner = <Editor onSetCode={setModifiedCode} codeFiles={codeFiles}
-                    lastError={lastError}
+                    lastError={lastError} resetCode={resetCode}
                     codeFile={codeFile} onSetCodeFile={setCodeFile}
-                    setRun={setRunning} code={code}/>
+                    setShowAdmin={setShowAdmin} group={group}
+                    setRun={startRunning} code={code}/>
   }
 
   return <div>
@@ -90,13 +120,22 @@ function App() {
   </div>;
 }
 
-function Login(props: { setSessionName: Dispatch<string> }) {
-  return <div>
-    <h3 className="h3">
-      New user! Type in a username below and hit enter to start.
-    </h3>
-    <CoolTextInput value="" onChange={props.setSessionName} placeholder="<username>"/>
-  </div>
+function Login(props: { setSessionName: Dispatch<string>, setGroup: Dispatch<string>, name: string | null }) {
+  if (!props.name) {
+    return <div>
+      <h3 className="h3">
+        New user! Type in a username below and hit enter to start.
+      </h3>
+      <CoolTextInput  key="name" value="" onChange={props.setSessionName} placeholder="username"/>
+    </div>
+  } else {
+    return <div>
+      <h3 className="h3">
+        Ok {props.name}, which group did your instructor assign you?
+      </h3>
+      <CoolTextInput key="group" value="" onChange={props.setGroup} placeholder="group"/>
+    </div>
+  }
 }
 
 interface RunGameProps extends GameProps {
@@ -115,6 +154,37 @@ function RunGame({setRun, ...gameProps}: RunGameProps) {
   </div>
 }
 
+interface AdminProps {
+  groups: ServerState['groups'],
+  onSetCode: Dispatch<string>,
+  setShowAdmin: Dispatch<boolean>,
+}
+
+function Admin({ groups, onSetCode, setShowAdmin }: AdminProps) {
+  return <div className="f6">
+    <div className="mb3">
+      <span className="ml4 bg-blue white pa2 br2" onClick={() => setShowAdmin(false)}>
+        Return
+      </span>
+    </div>
+    {Object.keys(groups).map(groupName => {
+      const group = groups[groupName];
+      return <div key={groupName}>
+        <h3>{groupName}</h3>
+        <ul>
+          {Object.keys(group).map(sessionId => {
+            const {name, lastError, code} = group[sessionId];
+            return <li key={sessionId} onClick={() => onSetCode(code)}>
+              {name}<br/>
+              { lastError && <pre className="mb3 pa3 br bg-washed-red">{lastError}</pre> }
+            </li>
+          })}
+        </ul>
+      </div>
+    })}
+  </div>
+}
+
 interface EditorProps {
   onSetCode: Dispatch<string>,
   code: string,
@@ -123,23 +193,32 @@ interface EditorProps {
   codeFile: string,
   codeFiles: { [k: string]: string },
   lastError: string,
+  resetCode: Dispatch<any>,
+  setShowAdmin: Dispatch<boolean>,
+  group: string,
 }
 
-function Editor({onSetCode, setRun, codeFile, codeFiles, code, onSetCodeFile, lastError}: EditorProps) {
+function Editor({onSetCode, setRun, codeFile, codeFiles, code, onSetCodeFile, lastError, resetCode, setShowAdmin, group}: EditorProps) {
 
   return <div className="f6">
     <div className="mb3">
       File: <select onChange={(e) => onSetCodeFile(e.target.value)} value={codeFile}>
         {Object.keys(codeFiles).map(file => <option key={file} value={file}>{file}</option>)}
       </select>
+      <span className="ml4 bg-blue white pa2 br2" onClick={() => resetCode(null)}>
+        Reset Code ↺️
+      </span>
       <span className="ml4 bg-blue white pa2 br2" onClick={() => setRun(true)}>
         Run ▶️
       </span>
+      { group === "admin" && <span className="ml4 bg-yellow white pa2 br2" onClick={() => setShowAdmin(true)}>
+        Admin
+      </span> }
     </div>
 
-    { lastError && <div className="mb3 pa3 br bg-washed-red">
+    { lastError && <pre className="mb3 pa3 br bg-washed-red">
       {lastError}
-    </div> }
+    </pre> }
 
     <CodeEditor
       value={code}
